@@ -12,36 +12,32 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. 配置 Java 环境
+      # 2. 设置 JDK 17 (目前最通用的版本)
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          java-version: "17"
-          distribution: "adopt"
+          java-version: '17'
+          distribution: 'temurin'
 
-      # 3. 设置 Android SDK (使用国内镜像源)
+      # 3. 【核心修复】直接安装 Gradle
+      # 因为我们没有 gradlew 文件，所以必须安装 Gradle 才能运行
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      # 4. 设置 Android SDK (为了保险，显式安装构建工具)
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-        env:
-          # 使用国内镜像源，解决网络问题
-          ANDROID_SDK_ROOT: ${{ runner.tool_cache }}/android/sdk
-          ANDROID_HOME: ${{ runner.tool_cache }}/android/sdk
-          # 以下是常用的 SDK 包，可以根据你的项目需求调整
-          SDK_PACKAGES: "platform-tools platform-tools platform-tools platform-tools"
 
-      # 4. 编译 APK
+      # 5. 编译 APK
+      # 注意：这里使用的是 'gradle' 而不是 './gradlew'
       - name: Build Debug APK
-        run: |
-          # 使用 gradle 命令，而不是 ./gradlew
-          gradle assembleDebug
+        run: gradle assembleDebug
 
-      # 5. 上传到 Release
+      # 6. 上传到 Release
       - name: Upload to Release
-        uses: "ncipollo/release-action@v1"
+        uses: ncipollo/release-action@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: "app/build/outputs/apk/debug/*.apk"
           name: "Auto Build ${{ github.run_number }}"
-          tag: "build-${{ github.run_id }}"
-          replacesArtifacts: true
-          allowUpdates: true
+          tag: "build-${{ github.run_number }}"
