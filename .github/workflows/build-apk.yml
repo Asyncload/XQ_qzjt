@@ -23,6 +23,8 @@ jobs:
       # 因为我们没有 gradlew 文件，所以必须安装 Gradle 才能运行
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
+        with:
+         gradle-version: '7.6'
 
       # 4. 设置 Android SDK (为了保险，显式安装构建工具)
       - name: Setup Android SDK
