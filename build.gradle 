@@ -1,24 +1,16 @@
-// 【必须添加的部分】告诉 Gradle 下载 Android 插件
 buildscript {
     repositories {
         google()
         mavenCentral()
-    }
-    dependencies {
-        // 指定 Android 构建工具的版本
-        classpath 'com.android.tools.build:gradle:7.4.2'
+        maven { url 'https://jitpack.io' }
     }
 }
 
-// 【你原本已有的部分】定义仓库
-allprojects {
-    repositories {
-        google()
-        mavenCentral()
-    }
+plugins {
+    id 'com.android.application' version '8.13.2' apply false
 }
 
-// 【你原本已有的部分】定义清理任务
 task clean(type: Delete) {
     delete rootProject.buildDir
+
 }
