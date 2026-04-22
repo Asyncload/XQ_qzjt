@@ -1,5 +1,5 @@
 plugins {
-    id 'com.example.forcescreenshot'
+    id 'com.android.application'
 }
 
 android {
