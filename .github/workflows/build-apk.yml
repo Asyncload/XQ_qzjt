@@ -35,10 +35,9 @@ jobs:
         uses: actions/cache@v3
         with:
          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-    # 把下面这行的 key 改一下，强制刷新缓存
-              key: ${{ runner.os }}-gradle-v2-${{ hashFiles('**/*.gradle*', '**/settings.gradle*') }} 
+          ~/.gradle/caches
+          ~/.gradle/wrapper   # 把下面这行的 key 改一下，强制刷新缓存
+          key: ${{ runner.os }}-gradle-v2-${{ hashFiles('**/*.gradle*', '**/settings.gradle*') }} 
     # 注意上面加了 v2，并且 hashFiles 里包含了 settings.gradle
 
       # 5. 编译 APK
