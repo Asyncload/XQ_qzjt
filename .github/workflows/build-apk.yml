@@ -20,19 +20,11 @@ jobs:
           distribution: 'temurin'
 
       # 3. 【核心修复】直接安装 Gradle 并配置缓存
-      # 这里我们显式配置缓存，并加上 -v2 来强制清除旧缓存
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '7.5'
           # 这里的 cache-disabled: false 是默认值，不用写
-          # 如果要强制清除缓存，最简单的办法是改变缓存的 key
-          # 但因为 setup-gradle 自动管理 key，我们在下一步手动清理更直接
-          
-      # 3.5 【强制清除缓存步骤】
-      # 如果你发现依赖有问题，运行这个命令删除本地缓存的依赖包
-      - name: Clean Gradle Cache (Force Refresh)
-        run: rm -rf ~/.gradle/caches/
 
       # 4. 设置 Android SDK
       - name: Setup Android SDK
