@@ -1,11 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="com.example.forcescreenshot">
 
     <!-- 声明 LSPosed 模块 -->
     <application
-        android:label="ForceScreenshot"
-        android:icon="res/ic_launcher.png"
-        android:roundIcon="res/ic_launcher.png">
+        android:label="X截图"
+        tools:ignore="HardcodedDebugMode,MissingApplicationIcon">
+        
         
         <!-- 主 Activity -->
         <activity android:name=".MainActivity"
