@@ -32,6 +32,16 @@ jobs:
       - name: Build Release APK
         run: ./gradlew assembleRelease
 
+      # --- 新增签名步骤 ---
+       - name: 安装 apksigner
+         run: sudo apt-get update && sudo apt-get install -y apksigner
+       - name: 生成临时签名密钥
+         run: |
+           keytool -genkey -v -keystore my-release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias myalias -storepass password789 -keypass password789 -dname "CN=Unknown, OU=Unknown, O=Unknown, L=Unknown, S=Unknown, C=Unknown"
+       - name: 签名 APK
+         run: |
+           apksigner sign --ks my-release-key.jks --ks-pass pass:password789 --key-pass pass:password789 --alias myalias app/build/outputs/apk/release/*.apk
+
       - name: Upload Release APK
         uses: softprops/action-gh-release@v2
         with:
