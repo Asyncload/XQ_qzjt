@@ -58,38 +58,43 @@ jobs:
             app/build/outputs/apk/release/app-release-unsigned.apk \
             myalias
 
-      # 9. 自定义APK文件名，自动带上版本号和日期
+      # 9. 自定义APK文件名，自动带上版本号和日期and日期
       - name: Rename APK
         run: |
           # 从build.gradle中读取versionName
           VERSION=$(grep versionName app/build.gradle | awk '{print $2}' | tr -d '"')
-          # 获取当前日期，格式为YYYY-MM-DD
+          # 获取当前日期（格式：YYYY-MM-DD）
           DATE=$(date +%Y-%m-%d)
-          # 获取当前时间, 格式为HHMMSS
+          # 获取当前时间（带冒号格式：HH:MM:SS）
           TIME=$(date +%H:%M:%S)
           
-          #自定义时间
-          echo "NEW_TIME=$TIME" >> $GITHUB_ENV
-          # 自定义文件名格式
+          # 关键：将变量导出到GitHub Actions环境变量，供后续步骤使用
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "DATE=$DATE" >> $GITHUB_ENV
+          echo "BUILD_TIME=$TIME" >> $GITHUB_ENV
+          
+          # 自定义APK文件名（时间部分也可以不带冒号，避免文件名特殊字符）
           NEW_NAME="X-screen_v${VERSION}_${DATE}.apk"
-          # 用签名后的文件改名
+          # 重命名签名后的APK（确认你的源文件路径正确）
           mv app/build/outputs/apk/release/app-release-signed.apk app/build/outputs/apk/release/$NEW_NAME
-          # 将文件名存入环境变量，供后续步骤使用
+          # 导出APK路径变量
           echo "APK_FILE=app/build/outputs/apk/release/$NEW_NAME" >> $GITHUB_ENV
       
-      # 10. 将签名后的APK发布到GitHub Release
+      # 发布到GitHub Release
       - name: Upload Release APK
         uses: softprops/action-gh-release@v2
         with:
-          # Release页面的名称，自动带上构建号
-          name: X-screen-v${{ github.run_number }}
-          # 上传的文件路径（使用上面步骤设置的环境变量）
+          # Release名称（带构建号和版本号，更清晰）
+          name: "X-screen-v${{ github.run_number }} (v${{ env.VERSION }})"
+          # 上传的APK文件路径
           files: ${{ env.APK_FILE }}
-          # 标签名，每次都会覆盖更新
-          tag_name: V_${{ env.VERSION }}
-          #内容
+          # 标签名（和应用版本号对应，规范格式）
+          tag_name: "v${{ env.VERSION }}"
+          # Release说明（带完整日期+带冒号时间，缩进完全规范）
           body: |
-           ✅编译完成！
-            编译时间: ${{ env.DATE }} & ${{ env.NEW_TIME }}
-          # 允许覆盖已存在的文件
+            ✅ 编译完成！
+            📱 应用版本: v${{ env.VERSION }}
+            📅 编译时间: ${{ env.DATE }} ${{ env.BUILD_TIME }}
+            📦 构建编号: ${{ github.run_number }}
+          # 允许覆盖已存在的文件（用于更新同版本Release）
           overwrite_files: true
