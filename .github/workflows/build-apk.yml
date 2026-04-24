@@ -48,22 +48,74 @@ jobs:
             app/build/outputs/apk/release/app-release-unsigned.apk \
             myalias
 
-      
+      # 版本自增(带进位) + 重命名 + 自动提交（已修复所有Git报错）
+      - name: 版本自增(带进位) + 重命名 + 自动提交
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "actions@github.com"
 
-          # 日期 + 带冒号时间
+          # 1. 彻底清理工作区，只保留签名好的APK
+          git checkout -- gradlew
+          rm -rf .gradle/ build/ my-release-key.jks
+
+          # 2. 读取并验证旧版本号
+          OLD_VER=$(grep versionName app/build.gradle | awk '{print $2}' | tr -d '"')
+          if [ -z "$OLD_VER" ]; then
+            echo "❌ 无法读取build.gradle中的versionName"
+            exit 1
+          fi
+          echo "🔍 读取到旧版本号: $OLD_VER"
+
+          # 3. 带进位计算新版本号
+          V1=$(echo $OLD_VER | cut -d'.' -f1)
+          V2=$(echo $OLD_VER | cut -d'.' -f2)
+          V3=$(echo $OLD_VER | cut -d'.' -f3)
+          
+          V3=$((V3 + 1))
+          if [ $V3 -ge 10 ]; then
+            V3=0
+            V2=$((V2 + 1))
+            if [ $V2 -ge 10 ]; then
+              V2=0
+              V1=$((V1 + 1))
+            fi
+          fi
+          NEW_VER="${V1}.${V2}.${V3}"
+          echo "✅ 计算得到新版本号: $NEW_VER"
+
+          # 4. 修改build.gradle并强制验证结果
+          sed -i "s/versionName\s*=\s*\".*\"/versionName = \"${NEW_VER}\"/g" app/build.gradle
+          
+          UPDATED_VER=$(grep versionName app/build.gradle | awk '{print $2}' | tr -d '"')
+          if [ "$UPDATED_VER" != "$NEW_VER" ]; then
+            echo "❌ 版本号写入失败！当前文件中的值: $UPDATED_VER"
+            exit 1
+          fi
+          echo "✅ 版本号已成功写入build.gradle"
+
+          # 5. 日期+带冒号时间
           DATE=$(date +%Y-%m-%d)
           TIME=$(date +%H:%M:%S)
 
-          # 注入全局变量给Release使用
+          # 注入环境变量
           echo "VERSION=$NEW_VER" >> $GITHUB_ENV
           echo "DATE=$DATE" >> $GITHUB_ENV
           echo "BUILD_TIME=$TIME" >> $GITHUB_ENV
 
-          # 重命名APK
-          NEW_NAME="X-screen_v${versionName}_${DATE}.apk"
+          # 6. 重命名APK
+          NEW_NAME="X-screen_v${NEW_VER}_${DATE}.apk"
           mv app/build/outputs/apk/release/app-release-signed.apk app/build/outputs/apk/release/$NEW_NAME
           echo "APK_FILE=app/build/outputs/apk/release/$NEW_NAME" >> $GITHUB_ENV
 
+          # 7. 【关键修复】只提交build.gradle，且只有变更时才提交
+          git add app/build.gradle
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: 自动迭代版本至 ${NEW_VER} [skip ci]"
+            git push
+            echo "✅ 版本号变更已提交并推送至仓库"
+          else
+            echo "ℹ️ 无版本号变更，跳过提交"
+          fi
 
       - name: Upload Release APK
         uses: softprops/action-gh-release@v2
