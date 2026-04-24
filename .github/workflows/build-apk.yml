@@ -66,10 +66,10 @@ jobs:
           # 获取当前日期，格式为YYYY-MM-DD
           DATE=$(date +%Y-%m-%d)
           # 获取当前时间, 格式为HHMMSS
-          NEW_TIME=$(date +%H:%M:%S)
+          TIME=$(date +%H:%M:%S)
           
           #自定义时间
-          echo "NEW_TIME=$NEW_TIME" >> $GITHUB_ENV
+          echo "NEW_TIME=$TIME" >> $GITHUB_ENV
           # 自定义文件名格式
           NEW_NAME="X-screen_v${VERSION}_${DATE}.apk"
           # 用签名后的文件改名
