@@ -1,10 +1,8 @@
 name: Build APK
 
-# 触发条件：支持手动触发
 on:
   workflow_dispatch:
 
-# 关键：授予写入权限，才能提交代码
 permissions:
   contents: write
 
@@ -13,42 +11,33 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. 拉取代码
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. 配置JDK 17
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      # 3. 配置Android SDK
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         
-      # 4. 修复Windows换行符问题
       - name: Fix gradlew line endings
         run: sed -i 's/\r$//' gradlew
 
-      # 5. 给gradlew添加执行权限
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # 6. 构建Release APK
       - name: Build Release APK
         run: ./gradlew clean assembleRelease --no-build-cache
 
-      # --- 签名流程开始 ---
-      # 7. 生成临时签名密钥
       - name: 生成临时签名密钥
         run: |
           keytool -genkey -v -keystore my-release-key.jks -keyalg RSA -keysize 2048 -validity 10000 \
           -alias myalias -storepass password789 -keypass password789 \
           -dname "CN=Unknown, OU=Unknown, O=Unknown, L=Unknown, S=Unknown, C=Unknown"
 
-      # 8. 用jarsigner签名APK
       - name: 用jarsigner签名APK
         run: |
           jarsigner -verbose \
@@ -59,48 +48,56 @@ jobs:
             app/build/outputs/apk/release/app-release-unsigned.apk \
             myalias
 
-      # 9. 版本自动+0.0.1 + 改写配置 + 自动提交 + 重命名APK
-      - name: 版本自增 + 重命名APK
+      - name: 版本自增(带进位) + 重命名 + 自动提交
         run: |
-          # 配置Git用户
           git config --global user.name "github-actions[bot]"
           git config --global user.email "actions@github.com"
-          
-          # 读取旧版本号
+
+          # 还原临时修改，避免git冲突
+          git checkout -- gradlew
+          rm -rf .gradle/ build/ my-release-key.jks
+
+          # 读取旧版本
           OLD_VER=$(grep versionName app/build.gradle | awk '{print $2}' | tr -d '"')
-          
-          # 分割 主.次.补丁
           V1=$(echo $OLD_VER | cut -d'.' -f1)
           V2=$(echo $OLD_VER | cut -d'.' -f2)
           V3=$(echo $OLD_VER | cut -d'.' -f3)
-          
-          # 补丁号 +1
-          V3=$((V3 + 1))
-          NEW_VER="${V1}.${V2}.${V3}"
-          
-          # 写入新版本号到 build.gradle
-          sed -i "s/versionName = \".*\"/versionName = \"${NEW_VER}\"/g" app/build.gradle
 
-          # 日期 + 带冒号时间
+          # 版本进位逻辑 1.1.9 → 1.2.0
+          V3=$((V3 + 1))
+          if [ $V3 -ge 10 ]; then
+            V3=0
+            V2=$((V2 + 1))
+            if [ $V2 -ge 10 ]; then
+              V2=0
+              V1=$((V1 + 1))
+            fi
+          fi
+
+          NEW_VER="${V1}.${V2}.${V3}"
+
+          # 写入新版本号
+          sed -i "s/versionName\s*=\s*\".*\"/versionName = \"${NEW_VER}\"/g" app/build.gradle
+
+          # 日期+带冒号时间
           DATE=$(date +%Y-%m-%d)
           TIME=$(date +%H:%M:%S)
-          
-          # 导出环境变量
+
+          # 注入环境变量
           echo "VERSION=$NEW_VER" >> $GITHUB_ENV
           echo "DATE=$DATE" >> $GITHUB_ENV
           echo "BUILD_TIME=$TIME" >> $GITHUB_ENV
-          
+
           # 重命名APK
           NEW_NAME="X-screen_v${NEW_VER}_${DATE}.apk"
           mv app/build/outputs/apk/release/app-release-signed.apk app/build/outputs/apk/release/$NEW_NAME
           echo "APK_FILE=app/build/outputs/apk/release/$NEW_NAME" >> $GITHUB_ENV
 
-          # 自动提交推送版本修改，[skip ci] 避免无限循环
+          # 提交并推送版本修改
           git add app/build.gradle
-          git commit -m "chore: auto bump version to ${NEW_VER} [skip ci]"
+          git commit -m "chore: 自动迭代版本至 ${NEW_VER} [skip ci]"
           git push
 
-      # 10. 发布到GitHub Release
       - name: Upload Release APK
         uses: softprops/action-gh-release@v2
         with:
@@ -108,8 +105,12 @@ jobs:
           files: ${{ env.APK_FILE }}
           tag_name: "v${{ env.VERSION }}"
           body: |
+          
             ✅ 编译完成！
             📱 应用版本: v${{ env.VERSION }}
             📅 编译时间: ${{ env.DATE }} ${{ env.BUILD_TIME }}
             📦 构建编号: ${{ github.run_number }}
+            🛠️ 功能: 解除一些APP屏蔽了截图权限。
+
+             
           overwrite_files: true
