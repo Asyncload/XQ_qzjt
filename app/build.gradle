@@ -50,11 +50,6 @@ android {
     }
     
     
-    
-    
-    
-    
-    
     packagingOptions {
         exclude 'META-INF/**'
         exclude 'kotlin/**'
@@ -63,13 +58,6 @@ android {
     }
 }
 
-dependencies {
-    
-    compileOnly 'de.robv.android.xposed:api:82'
-    compileOnly 'de.robv.android.xposed:api-sdk:82:sources'
-    implementation 'androidx.appcompat:appcompat:1.7.0'
-    
-    
 configurations.all {
     resolutionStrategy {
         // 强制使用 1.8.22 版本（或者你项目中使用的最新版）
@@ -77,8 +65,6 @@ configurations.all {
         force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22'
         force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22'
     }
-}
-        
-    
+}   
     
 }
