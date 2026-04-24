@@ -44,7 +44,7 @@
 
         <meta-data
             android:name="xposedminversion"
-            android:value="82" />
+            android:value="93" />
 
         <meta-data
             android:name="xposed_init"
