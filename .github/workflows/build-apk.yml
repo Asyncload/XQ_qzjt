@@ -48,29 +48,7 @@ jobs:
             app/build/outputs/apk/release/app-release-unsigned.apk \
             myalias
 
-      # 方案三：读取仓库变量 + 带进位自增（不修改源码、不提交代码）
-      - name: 版本自动进位 + 重命名APK
-        run: |
-          # 读取仓库储存的版本号
-          OLD_VER="${{ vars.APP_VERSION }}"
-          
-          # 拆分三段版本
-          V1=$(echo $OLD_VER | cut -d'.' -f1)
-          V2=$(echo $OLD_VER | cut -d'.' -f2)
-          V3=$(echo $OLD_VER | cut -d'.' -f3)
-
-          # 进位逻辑：1.1.9 → 1.2.0
-          V3=$((V3 + 1))
-          if [ $V3 -ge 10 ]; then
-            V3=0
-            V2=$((V2 + 1))
-            if [ $V2 -ge 10 ]; then
-              V2=0
-              V1=$((V1 + 1))
-            fi
-          fi
-
-          NEW_VER="${V1}.${V2}.${V3}"
+      
 
           # 日期 + 带冒号时间
           DATE=$(date +%Y-%m-%d)
@@ -86,18 +64,6 @@ jobs:
           mv app/build/outputs/apk/release/app-release-signed.apk app/build/outputs/apk/release/$NEW_NAME
           echo "APK_FILE=app/build/outputs/apk/release/$NEW_NAME" >> $GITHUB_ENV
 
-      # 更新仓库变量 → 永久保存新版本，下次继续递增
-      - name: 更新储存的版本号
-        uses: actions/github-script@v6
-        with:
-          script: |
-            let v = process.env.VERSION;
-            await github.rest.repos.createOrUpdateEnvironmentVariable({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              name: 'APP_VERSION',
-              value: v
-            });
 
       - name: Upload Release APK
         uses: softprops/action-gh-release@v2
