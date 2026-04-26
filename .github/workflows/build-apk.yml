@@ -89,21 +89,16 @@ jobs:
       # ==============================================
       # 签名（使用临时密钥，仅演示；生产环境建议固定密钥并存储在 Secrets 中）
       # ==============================================
-      - name: Generate keystore for signing
-        run: |
-          keytool -genkey -v -keystore my-release-key.jks -keyalg RSA -keysize 2048 -validity 10000 \
-            -alias myalias -storepass password789 -keypass password789 \
-            -dname "CN=Unknown, OU=Unknown, O=Unknown, L=Unknown, S=Unknown, C=Unknown"
-
-      - name: Sign APK with jarsigner
-        run: |
-          jarsigner -verbose \
-            -keystore my-release-key.jks \
-            -storepass password789 \
-            -keypass password789 \
-            -signedjar app/build/outputs/apk/release/app-release-signed.apk \
-            app/build/outputs/apk/release/app-release-unsigned.apk \
-            myalias
+      # 使用固定签名密钥为 APK 签名
+      - name: Sign APK with Fixed Key
+        id: sign_app
+        uses: r0adkll/sign-android-release@v1
+        with:
+           releaseDirectory: app/build/outputs/apk/release
+           signingKeyBase64: ${{ secrets.XSCREEN_JKS }}
+           alias: ${{ secrets.ALIAS }}
+           keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
+           keyPassword: ${{ secrets.KEYSTORE_PASSWORD }}
 
       # ==============================================
       # 重命名 APK + 提交版本变更 + 设置 APK_FILE 环境变量
