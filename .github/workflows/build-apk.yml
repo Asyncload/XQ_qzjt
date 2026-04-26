@@ -1,174 +1,136 @@
 name: Build APK
-
 on:
-  workflow_dispatch:
-
+  workflow_dispatch: # 手动触发工作流
+# 授权：允许写入代码、创建Tag/Release
 permissions:
   contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
+      # 拉取仓库代码
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # 配置 JDK17
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
-          distribution: 'temurin'
+          distribution: temurin
 
+      # 配置 Android SDK 环境
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Fix gradlew line endings
-        run: sed -i 's/\r$//' gradlew
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-
-      # ==============================================
-      # 自增版本号并写入 build.gradle + 保存到环境变量
-      # ==============================================
-      - name: Update version number
-        id: version_update
+      # 修复换行符 + 授予gradlew执行权限
+      - name: Fix gradlew & grant permission
         run: |
-          echo "📝 build.gradle 中 versionName 行原始内容："
-          grep versionName app/build.gradle
+          sed -i 's/\r$//' gradlew
+          chmod +x gradlew
 
-          OLD_VER=$(grep versionName app/build.gradle | awk '{print $NF}' | tr -d '"' | tr -d "'")
-          echo "🔍 读取到旧版本号: $OLD_VER"
-
-          V1=$(echo $OLD_VER | cut -d'.' -f1)
-          V2=$(echo $OLD_VER | cut -d'.' -f2)
-          V3=$(echo $OLD_VER | cut -d'.' -f3)
+      # 自动版本号自增 每次+5，99进位
+      - name: Auto increment version
+        run: |
+          OLD_VER=$(grep versionName app/build.gradle | awk '{print $NF}' | tr -d "\"'")
+          V1=$(echo "$OLD_VER" | cut -d'.' -f1)
+          V2=$(echo "$OLD_VER" | cut -d'.' -f2)
+          V3=$(echo "$OLD_VER" | cut -d'.' -f3)
           
           V3=$((V3 + 5))
-          if [ $V3 -ge 99 ]; then
+          if [ "$V3" -ge 99 ]; then
             V3=0
             V2=$((V2 + 1))
-            if [ $V2 -ge 99 ]; then
-              V2=0
-              V1=$((V1 + 1))
-            fi
+            [ "$V2" -ge 99 ] && { V2=0; V1=$((V1 + 1)); }
           fi
-          NEW_VER="${V1}.${V2}.${V3}"
-          echo "✅ 计算得到新版本号: $NEW_VER"
-
-          sed -i "s/versionName\s*=\?\s*[\"'].*[\"']/versionName = \"${NEW_VER}\"/g" app/build.gradle
           
-          UPDATED_VER=$(grep versionName app/build.gradle | awk '{print $NF}' | tr -d '"' | tr -d "'")
-          if [ "$UPDATED_VER" != "$NEW_VER" ]; then
-            echo "❗ 版本号写入失败！当前文件中的值: $UPDATED_VER"
-            exit 1
-          fi
-          echo "✅ 版本号已成功写入 build.gradle"
+          NEW_VER="${V1}.${V2}.${V3}"
+          sed -i "s/versionName\s*=.*[\"'].*[\"']/versionName = \"${NEW_VER}\"/g" app/build.gradle
+          echo "NEW_VER=$NEW_VER" >> "$GITHUB_ENV"
 
-          # 关键：将新版本号保存到环境变量，供后续步骤使用
-          echo "NEW_VER=$NEW_VER" >> $GITHUB_ENV
-
-      # ==============================================
-      # 生成日期时间变量（提前，供重命名APK使用）
-      # ==============================================
-      - name: Generate datetime environment variables
+      # 生成编译日期时间变量
+      - name: Set build datetime
         run: |
-          DATE=$(date +%Y-%m-%d)
-          TIME=$(date +%H:%M:%S)
-          echo "DATE=$DATE" >> $GITHUB_ENV
-          echo "BUILD_TIME=$TIME" >> $GITHUB_ENV
-          echo "✅ 日期时间已设置: $DATE $TIME"
+          echo "DATE=$(date +%Y-%m-%d)" >> "$GITHUB_ENV"
+          echo "BUILD_TIME=$(date +%H:%M:%S)" >> "$GITHUB_ENV"
 
-      # ==============================================
-      # 正常编译
-      # ==============================================
-      - name: Build Release APK (unsigned)
+      # 编译Release正式包
+      - name: Build Release APK
         run: ./gradlew clean assembleRelease --no-build-cache
 
-      # ==============================================
-      # 签名（使用临时密钥，仅演示；生产环境建议固定密钥并存储在 Secrets 中）
-      # ==============================================
-      # 使用固定签名密钥为 APK 签名
-      - name: Sign APK with Fixed Key
-        id: sign_app
-        uses: r0adkll/sign-android-release@v1
-        with:
-           releaseDirectory: app/build/outputs/apk/release
-           signingKeyBase64: ${{ secrets.XCREEN_JKS }}
-           alias: ${{ secrets.ALIAS }}
-           keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
-           keyPassword: ${{ secrets.KEYSTORE_PASSWORD }}
-        env:
-          BUILD_TOOLS_VERSION: "34.0.0"
-        
+      # 解析Base64密钥文件
+      - name: Decode keystore
+        run: echo "${{ secrets.XCREEN_JKS }}" | base64 -d > my-release-key.jks
 
-      # ==============================================
-      # 重命名 APK + 提交版本变更 + 设置 APK_FILE 环境变量
-      # ==============================================
-      - name: Rename APK and push version change
+      # zipalign对齐 + jarsigner签名
+      - name: Align & Sign APK
+        run: |
+          ZIPALIGN="$ANDROID_HOME/build-tools/34.0.0/zipalign"
+          UNSIGNED=app/build/outputs/apk/release/app-release-unsigned.apk
+          ALIGNED=app/build/outputs/apk/release/app-release-aligned.apk
+          SIGNED=app/build/outputs/apk/release/app-release-signed.apk
+          
+          "$ZIPALIGN" -v -p 4 "$UNSIGNED" "$ALIGNED"
+          
+          jarsigner -verbose \
+            -sigalg SHA1withRSA \
+            -digestalg SHA1 \
+            -keystore my-release-key.jks \
+            -storepass ${{ secrets.KEYSTORE_PASSWORD }} \
+            -keypass ${{ secrets.KEYSTORE_PASSWORD }} \
+            -signedjar "$SIGNED" "$ALIGNED" ${{ secrets.ALIAS }}
+          
+          rm -f my-release-key.jks
+
+      # 重命名APK + 提交版本号变更并推送
+      - name: Rename APK & commit version
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "actions@github.com"
-
-          # 清理临时文件
-          git checkout -- gradlew
-          rm -rf .gradle/ build/ my-release-key.jks
-
-          # 重命名 APK，使用从环境变量获取的版本号和日期
-          NEW_NAME="X-screen_v${{ env.NEW_VER }}_${{ env.DATE }}.apk"
-          mv app/build/outputs/apk/release/app-release-signed.apk app/build/outputs/apk/release/$NEW_NAME
-          echo "APK_FILE=app/build/outputs/apk/release/$NEW_NAME" >> $GITHUB_ENV
-          echo "✅ APK 已重命名为: $NEW_NAME"
-
-          # 提交版本号变更
+          
+          APK_NAME="X-screen_v${{ env.NEW_VER }}_${{ env.DATE }}.apk"
+          mv app/build/outputs/apk/release/app-release-signed.apk app/build/outputs/apk/release/"$APK_NAME"
+          echo "APK_FILE=app/build/outputs/apk/release/$APK_NAME" >> "$GITHUB_ENV"
+          
           git add app/build.gradle
           if ! git diff --cached --quiet; then
-            git commit -m "chore: 自动迭代版本至 ${{ env.NEW_VER }} [skip ci]"
+            git commit -m "chore: auto bump version to ${{ env.NEW_VER }} [skip ci]"
             git push
-            echo "✅ 版本号变更已提交并推送"
-          else
-            echo "⚠️ 无版本号变更，跳过提交"
           fi
 
-      # ==============================================
-      # 生成 Changelog（基于 Commit 消息）
-      # ==============================================
-      - name: Build Changelog
+      # 自动生成提交日志更新内容
+      - name: Generate changelog
         id: changelog
         uses: mikepenz/release-changelog-builder-action@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commitMode: true
 
-      # ==============================================
-      # 拼接完整的 Release Body（自定义内容 + Changelog）
-      # ==============================================
-      - name: Build Full Release Body
+      # 拼接Release发布文案
+      - name: Build release body
         id: build_body
         run: |
-          FULL_BODY='## 自定义内容
-          ✅ 编译完成！ 🎉🎉🎉
-          📱 应用版本: v_${{ env.NEW_VER }}
-          📅 编译时间: ${{ env.DATE }} ${{ env.BUILD_TIME }}
-          📦 构建编号: ${{ github.run_number }}
-          🛠️ 功能: 解除某些APP屏蔽了截图权限。
+          FULL_BODY="
+            ✅ 编译完成 🎉🎉🎉🎉🎉
+          📱 应用版本：v${{ env.NEW_VER }}
+          📅 编译时间：${{ env.DATE }} ${{ env.BUILD_TIME }}
+          📦 构建编号：${{ github.run_number }}
+          🛠️ 功能：解除部分APP截图权限限制
 
-          ${{ steps.changelog.outputs.changelog }}'
+          ${{ steps.changelog.outputs.changelog }}"
+          
+          EOF=$(head -c15 /dev/urandom | base64)
+          echo "full_body<<$EOF" >> "$GITHUB_OUTPUT"
+          echo "$FULL_BODY" >> "$GITHUB_OUTPUT"
+          echo "$EOF" >> "$GITHUB_OUTPUT"
 
-          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
-          echo "full_body<<$EOF" >> $GITHUB_OUTPUT
-          echo "$FULL_BODY" >> $GITHUB_OUTPUT
-          echo "$EOF" >> $GITHUB_OUTPUT
-
-      # ==============================================
-      # 发布 Release 并上传 APK
-      # ==============================================
-      - name: Upload Release APK
+      # 创建Release、打Tag、上传APK附件
+      - name: Create Release & upload APK
         uses: softprops/action-gh-release@v2
         with:
-          name: "X-screen_v${{ github.run_number }} (v_${{ env.NEW_VER }})"
+          name: "X-screen 构建 #${{ github.run_number }} | v${{ env.NEW_VER }}"
+          tag_name: "v${{ env.NEW_VER }}"
           files: ${{ env.APK_FILE }}
-          tag_name: "v_${{ env.NEW_VER }}"
           body: ${{ steps.build_body.outputs.full_body }}
           overwrite_files: true
