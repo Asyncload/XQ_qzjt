@@ -148,8 +148,8 @@ jobs:
           if [ "${{ steps.commits.outputs.has_commits }}" = "true" ]; then
             FULL_BODY="${FULL_BODY}
 
-## 更新内容
-${{ steps.commits.outputs.commit_messages }}"
+           ## 更新内容
+           ${{ steps.commits.outputs.commit_messages }}"
           fi
           EOF=$(head -c15 /dev/urandom | base64)
           echo "full_body<<$EOF" >> "$GITHUB_OUTPUT"
