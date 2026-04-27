@@ -29,7 +29,7 @@ jobs:
       # ========== 解码密钥文件（必须在 Gradle 构建前） ==========
       - name: Decode keystore
         run: |
-          echo "${{ secrets.XSCREEN_JSK }}" | base64 -d > ${{ github.workspace }}/myAPP.jks
+          echo "${{ secrets.XSCREEN_JKS }}" | base64 -d > ${{ github.workspace }}/myAPP.jks
           ls -lh myAPP.jks
 
       # ========== 自动版本号自增 ==========
