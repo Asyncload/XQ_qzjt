@@ -102,7 +102,7 @@ jobs:
         id: commits
         run: |
           LAST_COMMIT="${{ steps.last_commit.outputs.last_commit }}"
-          python3 .github/scripts/commits.py "$LAST_COMMIT"
+          python3 .github/workflows/scripts/commits.py "$LAST_COMMIT"
 
       # 拼接 Release body
       - name: Build release body
