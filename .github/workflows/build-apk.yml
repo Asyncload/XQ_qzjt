@@ -66,11 +66,10 @@ jobs:
           # KEY_PASSWORD 与 KEYSTORE_PASSWORD 相同，可省略（已在 build.gradle 中处理）
 
       # ========== 验证签名（可选） ==========
-      - name: Verify APK signature
+      - name: Verify APK signature (using keytool)
         run: |
-          APK_PATH=app/build/outputs/apk/release/*.apk
-          # 使用 Android SDK 自带的 apksigner（已由 setup-android 安装）
-          apksigner verify --verbose $APK_PATH
+          APK_PATH=$(ls app/build/outputs/apk/release/*.apk | head -1)
+          unzip -p "$APK_PATH" META-INF/*.RSA | keytool -printcert
 
       # ========== 重命名 APK ==========
       - name: Rename APK
